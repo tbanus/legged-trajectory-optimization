@@ -1,108 +1,153 @@
 #include <ifopt/problem.h>
 #include <ifopt/ipopt_solver.h>
-#include <iostream>
+#include <ifopt/constraint_set.h>
+#include <ifopt/cost_term.h>
+#include <ifopt/variable_set.h>
+#include <vector>
+#include <cmath>
+#include <iostream> // Ensure std::cout is recognized
 
-// Base variables
-class BaseVariables : public ifopt::VariableSet {
+// Variable set for x, y positions
+class TrajectoryVariables : public ifopt::VariableSet {
 public:
-  BaseVariables() : VariableSet(6,"base_vars") {}
-  void SetVariables(const Eigen::VectorXd& x) override {}
-  Eigen::VectorXd GetValues() const override { return Eigen::VectorXd::Zero(6); }
-  VecBound GetBounds() const override { return VecBound(6, ifopt::NoBound); }
+    TrajectoryVariables(int n_points)
+        : VariableSet(2 * n_points, "trajectory"), n_points_(n_points) {
+        variables_.resize(2 * n_points_);
+        variables_.setZero();
+        // Initialize with start point
+        variables_[0] = 1.0; // x0
+        variables_[1] = 1.0; // y0
+    }
+
+    // Get variable values
+    Eigen::VectorXd GetValues() const override {
+        return variables_;
+    }
+
+    // Set variable values
+    void SetVariables(const Eigen::VectorXd& x) override {
+        variables_ = x;
+    }
+
+    // Get bounds for variables
+    std::vector<ifopt::Bounds> GetBounds() const override {
+    std::vector<ifopt::Bounds> bounds;
+    bounds.emplace_back(1.0, 1.0); // x0 fixed
+    bounds.emplace_back(1.0, 1.0); // y0 fixed
+    for (int i = 1; i < n_points_ - 1; ++i) {
+        bounds.emplace_back(0.0, 5.0); // Intermediate x
+        bounds.emplace_back(0.0, 5.0); // Intermediate y
+    }
+    bounds.emplace_back(4.0, 4.0); // x_goal fixed
+    bounds.emplace_back(4.0, 4.0); // y_goal fixed
+    return bounds;
+
+    }
+
+private:
+    int n_points_;
+    Eigen::VectorXd variables_;
 };
 
-// Foot position variables
-class FootPositionVariables : public ifopt::VariableSet {
+// Constraint set for momentum
+class MomentumConstraint : public ifopt::ConstraintSet {
 public:
-  FootPositionVariables() : VariableSet(12,"foot_pos") {}
-  void SetVariables(const Eigen::VectorXd& x) override {}
-  Eigen::VectorXd GetValues() const override { return Eigen::VectorXd::Zero(12); }
-  VecBound GetBounds() const override { return VecBound(12, ifopt::NoBound); }
+    MomentumConstraint(int n_points, std::shared_ptr<TrajectoryVariables> vars)
+        : ConstraintSet(2 * (n_points - 1), "momentum"), n_points_(n_points), variables_(vars) {}
+
+    // Compute constraint values
+    Eigen::VectorXd GetValues() const override {
+        Eigen::VectorXd g(2 * (n_points_ - 1));
+        for (int i = 1; i < n_points_; ++i) {
+            double dx = variables_->GetValues()(2 * i) - variables_->GetValues()(2 * (i - 1));
+            double dy = variables_->GetValues()(2 * i + 1) - variables_->GetValues()(2 * (i - 1) + 1);
+            g(2 * (i - 1)) = dx;
+            g(2 * (i - 1) + 1) = dy;
+        }
+        return g;
+    }
+
+    // Get bounds for constraints
+    std::vector<ifopt::Bounds> GetBounds() const override {
+        std::vector<ifopt::Bounds> bounds;
+        for (int i = 0; i < 2 * (n_points_ - 1); ++i) {
+            bounds.emplace_back(-0.1, 0.1); // Momentum constraint
+        }
+        return bounds;
+    }
+
+    void FillJacobianBlock(std::string var_set, Jacobian& jac) const override {
+        if (var_set == "trajectory") {
+            for (int i = 1; i < n_points_; ++i) {
+                jac.coeffRef(2 * (i - 1), 2 * i) = 1.0;   // dx w.r.t. x_i
+                jac.coeffRef(2 * (i - 1), 2 * (i - 1)) = -1.0; // dx w.r.t. x_{i-1}
+                jac.coeffRef(2 * (i - 1) + 1, 2 * i + 1) = 1.0; // dy w.r.t. y_i
+                jac.coeffRef(2 * (i - 1) + 1, 2 * (i - 1) + 1) = -1.0; // dy w.r.t. y_{i-1}
+            }
+        }
+    }
+
+private:
+    int n_points_;
+    std::shared_ptr<TrajectoryVariables> variables_;
 };
 
-// Foot force variables
-class FootForceVariables : public ifopt::VariableSet {
+// Cost function for total distance
+class DistanceCost : public ifopt::CostTerm {
 public:
-  FootForceVariables() : VariableSet(12,"foot_force") {}
-  void SetVariables(const Eigen::VectorXd& x) override {}
-  Eigen::VectorXd GetValues() const override { return Eigen::VectorXd::Zero(12); }
-  VecBound GetBounds() const override { return VecBound(12, ifopt::NoBound); }
+    DistanceCost(int n_points, std::shared_ptr<TrajectoryVariables> vars)
+        : CostTerm("distance_cost"), n_points_(n_points), variables_(vars) {}
+
+    double GetCost() const override {
+        double cost = 0.0;
+        for (int i = 1; i < n_points_; ++i) {
+            double dx = variables_->GetValues()(2 * i) - variables_->GetValues()(2 * (i - 1));
+            double dy = variables_->GetValues()(2 * i + 1) - variables_->GetValues()(2 * (i - 1) + 1);
+            cost += std::sqrt(dx * dx + dy * dy);
+        }
+        return cost;
+    }
+
+    void FillJacobianBlock(std::string var_set, Jacobian& jac) const override {
+        if (var_set == "trajectory") {
+            const double epsilon = 1e-8; // Avoid division by zero
+            for (int i = 1; i < n_points_; ++i) {
+                double dx = variables_->GetValues()(2 * i) - variables_->GetValues()(2 * (i - 1));
+                double dy = variables_->GetValues()(2 * i + 1) - variables_->GetValues()(2 * (i - 1) + 1);
+                double dist = std::sqrt(dx * dx + dy * dy) + epsilon; // Add epsilon
+                jac.coeffRef(0, 2 * i) = dx / dist;       // Partial w.r.t. x_i
+                jac.coeffRef(0, 2 * (i - 1)) = -dx / dist; // Partial w.r.t. x_{i-1}
+                jac.coeffRef(0, 2 * i + 1) = dy / dist;   // Partial w.r.t. y_i
+                jac.coeffRef(0, 2 * (i - 1) + 1) = -dy / dist; // Partial w.r.t. y_{i-1}
+            }
+        }
+    }
+
+private:
+    int n_points_;
+    std::shared_ptr<TrajectoryVariables> variables_;
 };
 
-// Foot contact schedule variables
-class FootContactScheduleVariables : public ifopt::VariableSet {
-public:
-  FootContactScheduleVariables() : VariableSet(4,"foot_contact") {}
-  void SetVariables(const Eigen::VectorXd& x) override {}
-  Eigen::VectorXd GetValues() const override { return Eigen::VectorXd::Zero(4); }
-  VecBound GetBounds() const override { return VecBound(4, ifopt::NoBound); }
-};
+int main() {
+    int n_points = 10; // Number of discrete points in trajectory
 
-// Dynamics constraint
-class DynamicsConstraint : public ifopt::ConstraintSet {
-public:
-  DynamicsConstraint() : ConstraintSet(6,"dynamics_constr") {}
-  Eigen::VectorXd GetValues() const override { return Eigen::VectorXd::Zero(6); }
-  VecBound GetBounds() const override {
-    return VecBound(6, ifopt::Bounds(0,0));
-  }
-  void FillJacobianBlock(std::string var_set, Jacobian& jac) const override {}
-};
+    ifopt::Problem nlp;
 
-// Friction constraint
-class FrictionConstraint : public ifopt::ConstraintSet {
-public:
-  FrictionConstraint() : ConstraintSet(4, "friction_constr") {}
-  Eigen::VectorXd GetValues() const override {
-    return Eigen::VectorXd::Zero(4);
-  }
-  VecBound GetBounds() const override {
-    return VecBound(4, ifopt::Bounds(-0.0, 0.0));
-  }
-  void FillJacobianBlock(std::string var_set, Jacobian& jac) const override {}
-};
+    auto trajectory_vars = std::make_shared<TrajectoryVariables>(n_points);
+    trajectory_vars->SetVariables(Eigen::VectorXd::LinSpaced(2 * n_points, 1.0, 4.0)); // Improved initial guess
 
-// Bounding box constraint
-class BoundingBoxConstraint : public ifopt::ConstraintSet {
-public:
-  BoundingBoxConstraint() : ConstraintSet(4, "bbox_constr") {}
-  Eigen::VectorXd GetValues() const override {
-    return Eigen::VectorXd::Zero(4);
-  }
-  VecBound GetBounds() const override {
-    return VecBound(4, ifopt::NoBound);
-  }
-  void FillJacobianBlock(std::string var_set, Jacobian& jac) const override {}
-};
+    nlp.AddVariableSet(trajectory_vars);
+    nlp.AddConstraintSet(std::make_shared<MomentumConstraint>(n_points, trajectory_vars));
+    nlp.AddCostSet(std::make_shared<DistanceCost>(n_points, trajectory_vars));
 
-// Example cost
-class EffortCost : public ifopt::CostTerm {
-public:
-  EffortCost() : ifopt::CostTerm("effort_cost") {}
-  double GetCost() const override { return 0.0; }
-  void FillJacobianBlock(std::string var_set, Jacobian& jac) const override {}
-};
+    ifopt::IpoptSolver solver;
+    solver.SetOption("print_level", 5); // Enable verbose output
+    solver.Solve(nlp);
 
-int main()
-{
-  ifopt::Problem nlp;
-  nlp.AddVariableSet(std::make_shared<BaseVariables>());
-  nlp.AddVariableSet(std::make_shared<FootPositionVariables>());
-  nlp.AddVariableSet(std::make_shared<FootForceVariables>());
-  nlp.AddVariableSet(std::make_shared<FootContactScheduleVariables>());
+    Eigen::VectorXd solution = nlp.GetOptVariables()->GetValues();
+    for (int i = 0; i < n_points; ++i) {
+        std::cout << "Point " << i << ": (" << solution(2 * i) << ", " << solution(2 * i + 1) << ")" << std::endl;
+    }
 
-  nlp.AddConstraintSet(std::make_shared<DynamicsConstraint>());
-  nlp.AddConstraintSet(std::make_shared<FrictionConstraint>());
-  nlp.AddConstraintSet(std::make_shared<BoundingBoxConstraint>());
-
-  nlp.AddCostSet(std::make_shared<EffortCost>());
-
-  ifopt::IpoptSolver solver;
-  solver.SetOption("tol", 1e-6);
-  solver.Solve(nlp);
-
-  std::cout << "Solution: " 
-            << nlp.GetOptVariables()->GetValues().transpose() 
-            << std::endl;
-  return 0;
+    return 0;
 }
