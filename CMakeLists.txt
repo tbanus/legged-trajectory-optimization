@@ -9,6 +9,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 
 find_package(ifopt 2.0.1 REQUIRED)
+find_package(Python3 COMPONENTS Development NumPy REQUIRED)
+include_directories(${Python3_INCLUDE_DIRS})
 
 
 # Include directories
@@ -40,4 +42,5 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 target_link_libraries(${PROJECT_NAME} 
   ifopt::ifopt_core
   ifopt::ifopt_ipopt
+  ${Python3_LIBRARIES}
 )

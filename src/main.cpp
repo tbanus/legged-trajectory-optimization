@@ -6,6 +6,9 @@
 #include <vector>
 #include <cmath>
 #include <iostream> // Ensure std::cout is recognized
+#include <matplotlibcpp.h> // Include matplotlib-cpp for plotting
+
+namespace plt = matplotlibcpp;
 
 // Variable set for x, y positions
 class TrajectoryVariables : public ifopt::VariableSet {
@@ -31,16 +34,16 @@ public:
 
     // Get bounds for variables
     std::vector<ifopt::Bounds> GetBounds() const override {
-    std::vector<ifopt::Bounds> bounds;
-    bounds.emplace_back(1.0, 1.0); // x0 fixed
-    bounds.emplace_back(1.0, 1.0); // y0 fixed
-    for (int i = 1; i < n_points_ - 1; ++i) {
-        bounds.emplace_back(0.0, 5.0); // Intermediate x
-        bounds.emplace_back(0.0, 5.0); // Intermediate y
-    }
-    bounds.emplace_back(4.0, 4.0); // x_goal fixed
-    bounds.emplace_back(4.0, 4.0); // y_goal fixed
-    return bounds;
+        std::vector<ifopt::Bounds> bounds;
+        bounds.emplace_back(1.0, 1.0); // x0 fixed
+        bounds.emplace_back(1.0, 1.0); // y0 fixed
+        for (int i = 1; i < n_points_ - 1; ++i) {
+            bounds.emplace_back(0.0, 5.0); // Intermediate x
+            bounds.emplace_back(0.0, 5.0); // Intermediate y
+        }
+        bounds.emplace_back(4.0, 4.0); // x_goal fixed
+        bounds.emplace_back(4.0, 4.0); // y_goal fixed
+        return bounds;
 
     }
 
@@ -128,6 +131,20 @@ private:
     std::shared_ptr<TrajectoryVariables> variables_;
 };
 
+void PlotTrajectory(const Eigen::VectorXd& solution, int n_points) {
+    std::vector<double> x_vals, y_vals;
+    for (int i = 0; i < n_points; ++i) {
+        x_vals.push_back(solution(2 * i));
+        y_vals.push_back(solution(2 * i + 1));
+    }
+    plt::plot(x_vals, y_vals, "-o");
+    plt::xlabel("X Position");
+    plt::ylabel("Y Position");
+    plt::title("Optimized Trajectory");
+    plt::grid(true);
+    plt::show();
+}
+
 int main() {
     int n_points = 10; // Number of discrete points in trajectory
 
@@ -148,6 +165,8 @@ int main() {
     for (int i = 0; i < n_points; ++i) {
         std::cout << "Point " << i << ": (" << solution(2 * i) << ", " << solution(2 * i + 1) << ")" << std::endl;
     }
+
+    PlotTrajectory(solution, n_points);
 
     return 0;
 }
