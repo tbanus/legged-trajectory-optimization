@@ -6,12 +6,12 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Set optimization level
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  --debug -O3")
 
 find_package(ifopt 2.0.1 REQUIRED)
 find_package(Python3 COMPONENTS Development NumPy REQUIRED)
 include_directories(${Python3_INCLUDE_DIRS})
-
+include_directories(/usr/lib/python3/dist-packages/numpy/core/include)
 
 # Include directories
 include_directories(
