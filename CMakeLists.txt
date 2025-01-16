@@ -23,7 +23,7 @@ include_directories(
 
 
 
-file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cpp)
+file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cpp ${PROJECT_SOURCE_DIR}/src/*.cc)
 # create executable
 add_executable(${PROJECT_NAME} ${SOURCES})
 
