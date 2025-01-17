@@ -202,6 +202,18 @@ void plot_grouped_trajectories(const towr::SplineHolder& solution) {
         // Foot positions, forces, and contact phases
         for (size_t leg = 0; leg < 4; ++leg) {
             Eigen::Vector3d foot_pos = solution.ee_motion_.at(leg)->GetPoint(t).p();
+
+
+            // Eigen::Vector3d base_W  = solution.base_linear_->GetPoint(t).p();
+
+            // Eigen::Vector3d pos_ee_W = solution.ee_motion_.at(leg)->GetPoint(t).p();
+            // towr::EulerConverter base_angular_ = solution.base_angular_;
+            // towr::EulerConverter::MatrixSXd b_R_w = base_angular_.GetRotationMatrixBaseToWorld(t).transpose();
+
+            // Eigen::Vector3d vector_base_to_ee_W = pos_ee_W - base_W;
+            
+            // Eigen::Vector3d vector_base_to_ee_B = b_R_w*(vector_base_to_ee_W);
+            // foot_pos = vector_base_to_ee_B;
             foot_positions[leg][0].push_back(foot_pos.x());
             foot_positions[leg][1].push_back(foot_pos.y());
             foot_positions[leg][2].push_back(foot_pos.z());
@@ -215,7 +227,7 @@ void plot_grouped_trajectories(const towr::SplineHolder& solution) {
             contact_phases[leg].push_back(is_contact ? 1.0 : 0.0);
         }
 
-        t += 0.2;
+        t += 0.01;
     }
 
     // Save grouped base linear and angular positions plot

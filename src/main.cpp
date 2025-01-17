@@ -90,10 +90,10 @@ int main() {
   double total_duration_;
   bool optimize_phase_durations_;
 
-  robot_ = RobotModel::Anymal;
+  robot_ = RobotModel::Hyq;
   terrain_ = HeightMap::FlatID;
-  gait_combo_ = GaitGenerator::Combos::C1;
-  total_duration_ = 2.4;
+  gait_combo_ = GaitGenerator::Combos::C0; 
+  total_duration_ = 2.40;
   visualize_trajectory_ = false;
   plot_trajectory_ = false;
   replay_speed_ = 1.0;  // realtime
@@ -116,12 +116,20 @@ int main() {
 
   // Kinematic limits and dynamic parameters of the hopper
   model_ = RobotModel(RobotModel::Anymal);
+  auto nominal_stance_B = model_.kinematic_model_->GetNominalStanceInBase();
+
+  double z_ground = 0.0;
+  initial_ee_W_ =  nominal_stance_B;
+  std::for_each(initial_ee_W_.begin(), initial_ee_W_.end(),
+                [&](Eigen::Vector3d& p){ p.z() = z_ground; } // feet at 0 height
+  );
+
 
   // set the initial position of the hopper
   initial_base_.lin.at(kPos).z() = 0.5;
 
   // define the desired goal state of the hopper
-  final_base_.lin.at(towr::kPos) << 1.0, 0.0, 0.5;
+  final_base_.lin.at(towr::kPos) << 1, 0.0, 0.5;
 
   // Instead of manually defining the initial durations for each foot and
   // step, for convenience we use a GaitGenerator with some predefined gaits
@@ -131,19 +139,19 @@ int main() {
   gait_gen_->SetCombo(id_gait);
   for (int ee = 0; ee < n_ee; ++ee) {
     initial_ee_W_.push_back(Eigen::Vector3d::Zero());
-
-    std::vector<double> phase_durations = gait_gen_->GetPhaseDurations(total_duration_, ee);
-    std::cout << "Phase durations for end-effector " << ee << ": ";
-    for (double duration : phase_durations) {
-        std::cout << duration << " ";
-    }
-    std::cout << std::endl;
-    params_.ee_phase_durations_.push_back(
-        gait_gen_->GetPhaseDurations(total_duration_, ee));
-    params_.ee_in_contact_at_start_.push_back(
-        gait_gen_->IsInContactAtStart(ee));
+    // params_.ee_phase_durations_.push_back(
+    //     gait_gen_->GetPhaseDurations(total_duration_, ee));
+    // params_.ee_in_contact_at_start_.push_back(
+    //     gait_gen_->IsInContactAtStart(ee));
   }
-  
+    // auto gait_gen_ = GaitGenerator::MakeGaitGenerator(n_ee);
+    // auto id_gait   = static_cast<GaitGenerator::Combos>(msg.gait);
+    // gait_gen_->SetCombo(id_gait);
+    for (int ee=0; ee<n_ee; ++ee) {
+      params_.ee_phase_durations_.push_back(gait_gen_->GetPhaseDurations(total_duration_, ee));
+      params_.ee_in_contact_at_start_.push_back(gait_gen_->IsInContactAtStart(ee));
+    }
+
   // add 
 
   // Here you can also add other constraints or change parameters
@@ -153,8 +161,9 @@ int main() {
   // more difficult terrain.
   if (optimize_phase_durations_) params_.OptimizePhaseDurations();
 
-
-
+  // print total time 
+  std::cout << "Total time ia: " << params_.GetTotalTime() << " seconds" << std::endl;
+  std::cout << "Number of nodes: " << int(params_.GetBasePolyDurations().size() )+ 1 << std::endl;
 
   std::vector<NodesVariables::Ptr> vars;
 
@@ -228,7 +237,8 @@ int main() {
   }
   vars.insert(vars.end(), ee_motion.begin(), ee_motion.end());
 
-
+  // std::cout << "params_.GetPhaseCount(" << 0 << "): " << params_.GetPhaseCount(0) << std::endl;
+  
 
   std::vector<NodesVariablesPhaseBased::Ptr> ee_force;
 
@@ -285,14 +295,14 @@ int main() {
   // constraints and costs.
   
   
-
+  
   for (int ee=0; ee<params_.GetEECount(); ee++) {
     auto rom = std::make_shared<RangeOfMotionConstraint>(model_.kinematic_model_,
                                                          params_.GetTotalTime(),
                                                          params_.dt_constraint_range_of_motion_,
                                                          ee,
                                                          spline_holder);
-    // constraints.push_back(rom);
+    constraints.push_back(rom);
   }
   
   
@@ -338,10 +348,23 @@ int main() {
 
 
 
+ std::vector<ifopt::CostTerm::Ptr> costs;
+ double weight = 1.0;
+
+  // for (int ee=0; ee<params_.GetEECount(); ee++)
+  //   costs.push_back(std::make_shared<NodeCost>(ee_force_nodes + std::to_string(ee), kPos, Z, weight));
+
+
+  // for (int ee=0; ee<params_.GetEECount(); ee++) {
+  //   costs.push_back(std::make_shared<NodeCost>(ee_motion_nodes + std::to_string(ee), kVel, X, weight));
+  //   costs.push_back(std::make_shared<NodeCost>(ee_motion_nodes + std::to_string(ee), kVel, Y, weight));
+  // }
+
+
   ifopt::Problem nlp;
   for (auto var : vars) nlp.AddVariableSet(var);
   for (auto con : constraints)  nlp.AddConstraintSet(con); 
-  // for (auto c : formulation.GetCosts()) nlp.AddCostSet(c);
+  for (auto cost : costs) nlp.AddCostSet(cost);
 
   // You can add your own elements to the nlp as well, simply by calling:
   // nlp.AddVariablesSet(your_custom_variables);
@@ -391,7 +414,7 @@ int main() {
 
     cout << endl;
 
-    t += 0.2;
+    t += 0.02;
   }
 
   plot_trajectories(solution);

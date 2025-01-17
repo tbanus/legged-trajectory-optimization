@@ -46,10 +46,11 @@ Parameters::Parameters ()
 
   // parameters related to specific constraints (only used when it is added as well)
   force_limit_in_normal_direction_ = 1000;
-  dt_constraint_range_of_motion_ = 0.16;
+  dt_constraint_range_of_motion_ = 0.08;
   dt_constraint_dynamic_ = 0.1;
   dt_constraint_base_motion_ = duration_base_polynomial_/4.; // only for base RoM constraint
   bound_phase_duration_ = std::make_pair(0.2, 1.0);  // used only when optimizing phase durations, so gait
+
 
   // a minimal set of basic constraints
   constraints_.push_back(Terrain);
@@ -121,10 +122,10 @@ Parameters::GetTotalTime () const
   double T = T_feet.empty()? 0.0 : T_feet.front(); // take first foot as reference
  
 
-  //add debug prins
-  for (size_t i = 0; i < T_feet.size(); ++i) {
-    std::cout << "Total time for foot " << i << ": " << T_feet[i] << std::endl;
-  }
+  // //add debug prins
+  // for (size_t i = 0; i < T_feet.size(); ++i) {
+  //   std::cout << "Total time for foot " << i << ": " << T_feet[i] << std::endl;
+  // }
 
   for (double Tf : T_feet)
     assert(fabs(Tf - T) < 1e-6);
