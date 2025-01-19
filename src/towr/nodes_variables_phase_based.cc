@@ -74,7 +74,7 @@ NodesVariablesPhaseBased::VecDurations
 NodesVariablesPhaseBased::ConvertPhaseToPolyDurations(const VecDurations& phase_durations) const
 {
   VecDurations poly_durations;
-  std::cout<<"info.n_polys_in_phase_"<<polynomial_info_.at(0).n_polys_in_phase_<<std::endl;
+  // std::cout<<"info.n_polys_in_phase_"<<polynomial_info_.at(0).n_polys_in_phase_<<std::endl;
 
   for (int i=0; i<GetPolynomialCount(); ++i) {
     auto info = polynomial_info_.at(i);

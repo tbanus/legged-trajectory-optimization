@@ -15,12 +15,14 @@ void save_plot(const std::string& filename, const std::string& title,
                const std::vector<double>& time_points,
                const std::vector<std::vector<double>>& data,
                const std::vector<std::string>& labels) {
-    plt::figure_size(2400, 1600);
+    plt::figure_size(1920, 1080);
     for (size_t i = 0; i < data.size(); ++i) {
         plt::named_plot(labels[i], time_points, data[i]);
     }
     plt::title(title);
-    plt::legend();
+    plt::xlabel("Time (s)");
+    plt::ylabel(title);
+    // plt::legend();
     plt::save(filename);
 }
 
@@ -105,7 +107,7 @@ void save_grouped_plot(const std::string& filename, const std::string& title,
     size_t rows = 2; // Fixed grid: 2x2 for 4 legs
     size_t cols = 2;
 
-    plt::figure_size(2400, 1600);
+    plt::figure_size(1920, 1080);
     for (size_t leg = 0; leg < n_legs; ++leg) {
         plt::subplot(rows, cols, leg + 1);
 
@@ -131,6 +133,8 @@ void save_grouped_plot(const std::string& filename, const std::string& title,
 
         // Add a title to the subplot
         plt::title(subplot_titles[leg]);
+        plt::xlabel("Time (s)");
+        plt::ylabel(subplot_titles[leg]);
 
   
     }
@@ -148,14 +152,18 @@ void save_grouped_base_plot(const std::string& filename, const std::string& titl
                             const std::vector<double>& time_points,
                             const std::vector<std::vector<double>>& base_positions,
                             const std::vector<std::vector<double>>& base_angles) {
-    plt::figure_size(2400, 1600);
+    plt::figure_size(1920, 1080);
 
     // Subplot 1: Base Linear Positions (X, Y, Z)
     plt::subplot(2, 1, 1);
+        
+
     plt::plot(time_points, base_positions[0], "r*-");
     plt::plot(time_points, base_positions[1], "g*-");
     plt::plot(time_points, base_positions[2], "b*-");
     plt::title("Base Linear Positions (X, Y, Z)");
+    plt::xlabel("Time (s)");
+    plt::ylabel("Base Linear Positions (X, Y, Z)");
     // plt::legend({"Base X", "Base Y", "Base Z"});
 
     // Subplot 2: Base Angular Positions (Roll, Pitch, Yaw)
@@ -164,6 +172,9 @@ void save_grouped_base_plot(const std::string& filename, const std::string& titl
     plt::plot(time_points, base_angles[1], "g*-");
     plt::plot(time_points, base_angles[2], "b*-");
     plt::title("Base Angular Positions (Roll, Pitch, Yaw)");
+    plt::xlabel("Time (s)");
+    plt::ylabel("Base Angular Positions (Roll, Pitch, Yaw)");
+
     // plt::legend({"Roll", "Pitch", "Yaw"});
 
     plt::suptitle(title); // Overall title

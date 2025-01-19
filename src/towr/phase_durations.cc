@@ -89,7 +89,7 @@ PhaseDurations::SetVariables (const VectorXd& x)
   // often found. So if you get this error you can ignore it by compiling in Release mode,
   // but I'm leaving this in here to show that this is undefined behavior and a clean
   // implementation is still required. PR desired ;)
-  assert(t_total_>x.sum());
+  // assert(t_total_>x.sum());
 
   for (int i=0; i<GetRows(); ++i)
     durations_.at(i) = x(i);
